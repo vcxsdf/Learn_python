@@ -111,48 +111,64 @@ while counter > 0:
             寫row到檔案,
             add row(ticker, low, timestamp,)
     """
+    # 如果輸入值為0就直接跳過 否則會造成state出錯
+    if current_stock_information['bid_price'][0]==0:
+        continue
     # 2-0 初始化
     if state_changes[ticker] == []:
         if current_stock_information['bid_price'][0]>=threshold_high:
             state_changes[ticker].append({'state': 'high', 'state_change_at': current_stock_information['datetime']})
+            print(f"{ticker} state initiated to high at {current_stock_information['bid_price'][0]}")
         elif current_stock_information['bid_price'][0]<=threshold_low:
             state_changes[ticker].append({'state': 'low', 'state_change_at': current_stock_information['datetime']})
+            print(f"{ticker} state initiated to low at {current_stock_information['bid_price'][0]}")
         else:
             state_changes[ticker].append({'state': 'no_sig'})
+            print(f"{ticker} state initiated to no_sig at {current_stock_information['bid_price'][0]}")
         continue
     # 2-3 如果信號high/low->low/high, 且大於設定時長, 就改值且加一行; 小於時長就只把state改成low/high
     elif state_changes[ticker][-1]['state'] == 'high' and current_stock_information['bid_price'][0]<=threshold_low and (datetime.now()-current_stock_information['datetime'])>=threshold_duration:
         state_changes[ticker][-1]['duration'] = datetime.now()-current_stock_information['datetime']
         state_changes[ticker].append({'state': 'low', 'state_change_at': current_stock_information['datetime']})
+        print(f"{ticker} state changed high to low at {current_stock_information['bid_price'][0]}")
         continue #怕跟轉no_sig條件重複, 所以high/low互轉就跳開
     elif state_changes[ticker][-1]['state'] == 'low' and current_stock_information['bid_price'][0]>=threshold_high and (datetime.now()-current_stock_information['datetime'])>=threshold_duration:
         state_changes[ticker][-1]['duration'] = datetime.now()-current_stock_information['datetime']
         state_changes[ticker].append({'state': 'high', 'state_change_at': current_stock_information['datetime']})
+        print(f"{ticker} state changed low to high at {current_stock_information['bid_price'][0]}")
         continue
     elif state_changes[ticker][-1]['state'] == 'high' and current_stock_information['bid_price'][0]<=threshold_low and (datetime.now()-current_stock_information['datetime'])<threshold_duration:
         state_changes[ticker][-1]['state']= 'low'
+        print(f"{ticker} state changed high to low at {current_stock_information['bid_price'][0]}")
         continue
     elif state_changes[ticker][-1]['state'] == 'low' and current_stock_information['bid_price'][0]>=threshold_high and (datetime.now()-current_stock_information['datetime'])<threshold_duration:
         state_changes[ticker][-1]['state']= 'high'
+        print(f"{ticker} state changed low to high at {current_stock_information['bid_price'][0]}")
         continue
     # 2-2 如果信號high/low->no_sig, 且大於設定時長, 就改值且加一行; 小於時長就只把state改回'no_sig
     elif state_changes[ticker][-1]['state'] == 'high' and current_stock_information['bid_price'][0]<threshold_high and (datetime.now()-current_stock_information['datetime'])>=threshold_duration:
         state_changes[ticker][-1]['duration'] = datetime.now()-current_stock_information['datetime']
         state_changes[ticker].append({'state': 'no_sig'})
+        print(f"{ticker} state changed high to no_sig at {current_stock_information['bid_price'][0]}")
     elif state_changes[ticker][-1]['state'] == 'low' and current_stock_information['bid_price'][0]>threshold_low and (datetime.now()-current_stock_information['datetime'])>=threshold_duration:
         state_changes[ticker][-1]['duration'] = datetime.now()-current_stock_information['datetime']
         state_changes[ticker].append({'state': 'no_sig'})
+        print(f"{ticker} state changed low to no_sig at {current_stock_information['bid_price'][0]}")
     elif state_changes[ticker][-1]['state'] == 'high' and current_stock_information['bid_price'][0]<threshold_high and (datetime.now()-current_stock_information['datetime'])<threshold_duration:
         state_changes[ticker][-1]['state']= 'no_sig'
+        print(f"{ticker} state changed high to no_sig at {current_stock_information['bid_price'][0]}")
     elif state_changes[ticker][-1]['state'] == 'low' and current_stock_information['bid_price'][0]>threshold_low  and (datetime.now()-current_stock_information['datetime'])<threshold_duration:
         state_changes[ticker][-1]['state']= 'no_sig'
+        print(f"{ticker} state changed low to no_sig at {current_stock_information['bid_price'][0]}")
     # 2-1 如果信號no_sig->high/low, 就改值
     elif state_changes[ticker][-1]['state'] == 'no_sig' and current_stock_information['bid_price'][0]>=threshold_high:
         state_changes[ticker][-1]['state']= 'high'
         state_changes[ticker][-1]['state_change_at'] = current_stock_information['datetime']
+        print(f"{ticker} state changed no_sig to high at {current_stock_information['bid_price'][0]}")
     elif state_changes[ticker][-1]['state'] == 'no_sig' and current_stock_information['bid_price'][0]<=threshold_low:
         state_changes[ticker][-1]['state']= 'low'
         state_changes[ticker][-1]['state_change_at'] = current_stock_information['datetime']
+        print(f"{ticker} state changed no_sig to low at {current_stock_information['bid_price'][0]}")
 
     # do something with current_stock_information
     # filter_set() .....
