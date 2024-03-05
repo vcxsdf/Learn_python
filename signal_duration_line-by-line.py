@@ -29,10 +29,13 @@ msg_queue = {'key1': deque([BidAsk(xxx=ooo,
 # (觀察多檔股票, 直接輸出信號 & 偵測信號持續時間)
 
 
+from prettytable import PrettyTable
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
-from prettytable import PrettyTable
 
+def convert_delta(dlt: timedelta) -> str:
+    minutes, seconds = divmod(int(dlt.total_seconds()), 60)
+    return f"{minutes}:{seconds:02}"
 
 # # new code
 # monitor = deque(['1101', '1102', '1103']) # 自定義
@@ -69,7 +72,7 @@ while counter > 0:
         continue
 
     print(f"{counter}#: stock code: {ticker}, current value: {current_stock_information}")
-   
+
     """
     2. capture state changes
         2-0. initialize
@@ -112,84 +115,93 @@ while counter > 0:
             寫row到檔案,
             add row(ticker, low, timestamp,)
     """
-    # 如果輸入值為0就直接跳過 否則會造成state出錯
-    if current_stock_information['bid_price'][0]==0:
+    info1 = current_stock_information['bid_price'][0]
+    info2 = current_stock_information['ask_price'][0]
+    if info1==0 or info2==0: # 如果輸入值為0就直接跳過 否則會造成state出錯
         continue
-    # 2-0 初始化
+    criteria_high = current_stock_information['bid_price'][0]
+    criteria_low  = current_stock_information['ask_price'][0]
+    #  2-0 初始化, 
     if state_changes[ticker] == []:
-        if current_stock_information['bid_price'][0]>=threshold_high:
+        if criteria_high>=threshold_high:
             state_changes[ticker].append({'state': 'high', 'state_change_at': current_stock_information['datetime']})
-            print(f"{ticker} state initiated to high at {current_stock_information['bid_price'][0]}")
-        elif current_stock_information['bid_price'][0]<=threshold_low:
+            print(f"{ticker} state initiated to high at {criteria_high}")
+        elif criteria_low<=threshold_low:
             state_changes[ticker].append({'state': 'low', 'state_change_at': current_stock_information['datetime']})
-            print(f"{ticker} state initiated to low at {current_stock_information['bid_price'][0]}")
+            print(f"{ticker} state initiated to low at {criteria_low}")
         else:
-            state_changes[ticker].append({'state': 'no_sig'})
-            print(f"{ticker} state initiated to no_sig at {current_stock_information['bid_price'][0]}")
+            state_changes[ticker].append({'state': 'no_sig', 'state_change_at': current_stock_information['datetime']})
+            print(f"{ticker} state initiated to no_sig at {criteria_low}")
         continue
+    duration1 = current_stock_information['datetime']-state_changes[ticker][-1]['state_change_at']
     # 2-3 如果信號high/low->low/high, 且大於設定時長, 就改值且加一行; 小於時長就只把state改成low/high
-    elif state_changes[ticker][-1]['state'] == 'high' and current_stock_information['bid_price'][0]<=threshold_low and (datetime.now()-current_stock_information['datetime'])>=threshold_duration:
-        state_changes[ticker][-1]['duration'] = datetime.now()-current_stock_information['datetime']
+    if state_changes[ticker][-1]['state'] == 'high' and criteria_low<=threshold_low and duration1>=threshold_duration:
+        state_changes[ticker][-1]['duration'] = duration1
         state_changes[ticker].append({'state': 'low', 'state_change_at': current_stock_information['datetime']})
-        print(f"{ticker} state changed high to low at {current_stock_information['bid_price'][0]}")
+        print(f"{ticker} state changed high to low at {criteria_low} and high signal duration>threshold")
         continue #怕跟轉no_sig條件重複, 所以high/low互轉就跳開
-    elif state_changes[ticker][-1]['state'] == 'low' and current_stock_information['bid_price'][0]>=threshold_high and (datetime.now()-current_stock_information['datetime'])>=threshold_duration:
-        state_changes[ticker][-1]['duration'] = datetime.now()-current_stock_information['datetime']
+    elif state_changes[ticker][-1]['state'] == 'low' and criteria_high>=threshold_high and duration1>=threshold_duration:
+        state_changes[ticker][-1]['duration'] = duration1
         state_changes[ticker].append({'state': 'high', 'state_change_at': current_stock_information['datetime']})
-        print(f"{ticker} state changed low to high at {current_stock_information['bid_price'][0]}")
+        print(f"{ticker} state changed low to high at {criteria_high} and low signal duration>threshold")
         continue
-    elif state_changes[ticker][-1]['state'] == 'high' and current_stock_information['bid_price'][0]<=threshold_low and (datetime.now()-current_stock_information['datetime'])<threshold_duration:
+    elif state_changes[ticker][-1]['state'] == 'high' and criteria_low<=threshold_low and duration1<threshold_duration:
         state_changes[ticker][-1]['state']= 'low'
-        print(f"{ticker} state changed high to low at {current_stock_information['bid_price'][0]}")
+        print(f"{ticker} state changed high to low at {criteria_low}, high signal continued for {duration1}")
         continue
-    elif state_changes[ticker][-1]['state'] == 'low' and current_stock_information['bid_price'][0]>=threshold_high and (datetime.now()-current_stock_information['datetime'])<threshold_duration:
+    elif state_changes[ticker][-1]['state'] == 'low' and criteria_high>=threshold_high and duration1<threshold_duration:
         state_changes[ticker][-1]['state']= 'high'
-        print(f"{ticker} state changed low to high at {current_stock_information['bid_price'][0]}")
+        print(f"{ticker} state changed low to high at {criteria_high}, low signal continued for {duration1}")
         continue
     # 2-2 如果信號high/low->no_sig, 且大於設定時長, 就改值且加一行; 小於時長就只把state改回'no_sig
-    elif state_changes[ticker][-1]['state'] == 'high' and current_stock_information['bid_price'][0]<threshold_high and (datetime.now()-current_stock_information['datetime'])>=threshold_duration:
-        state_changes[ticker][-1]['duration'] = datetime.now()-current_stock_information['datetime']
-        state_changes[ticker].append({'state': 'no_sig'})
-        print(f"{ticker} state changed high to no_sig at {current_stock_information['bid_price'][0]}")
-    elif state_changes[ticker][-1]['state'] == 'low' and current_stock_information['bid_price'][0]>threshold_low and (datetime.now()-current_stock_information['datetime'])>=threshold_duration:
-        state_changes[ticker][-1]['duration'] = datetime.now()-current_stock_information['datetime']
-        state_changes[ticker].append({'state': 'no_sig'})
-        print(f"{ticker} state changed low to no_sig at {current_stock_information['bid_price'][0]}")
-    elif state_changes[ticker][-1]['state'] == 'high' and current_stock_information['bid_price'][0]<threshold_high and (datetime.now()-current_stock_information['datetime'])<threshold_duration:
+    elif state_changes[ticker][-1]['state'] == 'high' and criteria_high<threshold_high and duration1>=threshold_duration:
+        state_changes[ticker][-1]['duration'] = duration1
+        state_changes[ticker].append({'state': 'no_sig', 'state_change_at': current_stock_information['datetime']})
+        print(f"{ticker} state changed high to no_sig at {criteria_high} and high signal duration>threshold")
+    elif state_changes[ticker][-1]['state'] == 'low' and criteria_low>threshold_low and duration1>=threshold_duration:
+        state_changes[ticker][-1]['duration'] = duration1
+        state_changes[ticker].append({'state': 'no_sig', 'state_change_at': current_stock_information['datetime']})
+        print(f"{ticker} state changed low to no_sig at {criteria_low} and low signal duration>threshold")
+    elif state_changes[ticker][-1]['state'] == 'high' and criteria_high<threshold_high and duration1<threshold_duration:
         state_changes[ticker][-1]['state']= 'no_sig'
-        print(f"{ticker} state changed high to no_sig at {current_stock_information['bid_price'][0]}")
-    elif state_changes[ticker][-1]['state'] == 'low' and current_stock_information['bid_price'][0]>threshold_low  and (datetime.now()-current_stock_information['datetime'])<threshold_duration:
+        state_changes[ticker][-1]['state_change_at'] = current_stock_information['datetime']
+        print(f"{ticker} state changed high to no_sig at {criteria_high}, high signal continued for {duration1}")
+    elif state_changes[ticker][-1]['state'] == 'low' and criteria_low>threshold_low  and duration1<threshold_duration:
         state_changes[ticker][-1]['state']= 'no_sig'
-        print(f"{ticker} state changed low to no_sig at {current_stock_information['bid_price'][0]}")
+        state_changes[ticker][-1]['state_change_at'] = current_stock_information['datetime']
+        print(f"{ticker} state changed low to no_sig at {criteria_low}, low signal continued for {duration1}")
     # 2-1 如果信號no_sig->high/low, 就改值
-    elif state_changes[ticker][-1]['state'] == 'no_sig' and current_stock_information['bid_price'][0]>=threshold_high:
+    elif state_changes[ticker][-1]['state'] == 'no_sig' and criteria_high>=threshold_high:
         state_changes[ticker][-1]['state']= 'high'
         state_changes[ticker][-1]['state_change_at'] = current_stock_information['datetime']
-        print(f"{ticker} state changed no_sig to high at {current_stock_information['bid_price'][0]}")
-    elif state_changes[ticker][-1]['state'] == 'no_sig' and current_stock_information['bid_price'][0]<=threshold_low:
+        print(f"{ticker} state changed no_sig to high at {criteria_high}")
+    elif state_changes[ticker][-1]['state'] == 'no_sig' and criteria_low<=threshold_low:
         state_changes[ticker][-1]['state']= 'low'
         state_changes[ticker][-1]['state_change_at'] = current_stock_information['datetime']
-        print(f"{ticker} state changed no_sig to low at {current_stock_information['bid_price'][0]}")
+        print(f"{ticker} state changed no_sig to low at {criteria_low}")
 
-    # do something with current_stock_information
-    # filter_set() .....
-    # filter_status() ....
-    #
-    counter -= 1
+    
 
+    """
+    3. display 
+    """
     # 輸出現在有信號的標的
+    table = PrettyTable(['Ticker','state','state_change_at','duration'])
     for ticker in monitor:
         if state_changes[ticker][-1]['state'] == 'high' or state_changes[ticker][-1]['state'] == 'low':
             print(f"{ticker}: state {state_changes[ticker][-1]['state']}")
-            list1 = [ticker, state_changes[ticker][-1]['state'],state_changes[ticker][-1]['state_change_at'],state_changes[ticker][-1]['duration']]
+            list1 = [ticker, state_changes[ticker][-1]['state'], datetime.strftime(state_changes[ticker][-1]['state_change_at'], "%H:%M"), convert_delta(duration1)]
             table.add_row(list1)
     print(datetime.now().strftime("%H:%M:%S")) # 只輸出 hour, minute, second
     print(table)
+    table.clear()
     # 清掉table下個迴圈重新建比較好 還是用更新的比較好
-    # test
+    """
+    4. save signal data 
+    """
+    # 儲存state_changes到檔案
 
-
-    # 儲存信號結束的標的
+    counter -= 1
 
 
 print(state_changes)
