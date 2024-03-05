@@ -31,6 +31,7 @@ msg_queue = {'key1': deque([BidAsk(xxx=ooo,
 
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
+from prettytable import PrettyTable
 
 
 # # new code
@@ -175,6 +176,18 @@ while counter > 0:
     # filter_status() ....
     #
     counter -= 1
+
+    # 輸出現在有信號的標的
+    for ticker in monitor:
+        if state_changes[ticker][-1]['state'] == 'high' or state_changes[ticker][-1]['state'] == 'low':
+            print(f"{ticker}: state {state_changes[ticker][-1]['state']}")
+            list1 = [ticker, state_changes[ticker][-1]['state'],state_changes[ticker][-1]['state_change_at'],state_changes[ticker][-1]['duration']]
+            table.add_row(list1)
+    print(datetime.now().strftime("%H:%M:%S")) # 只輸出 hour, minute, second
+    print(table)
+    # 清掉table下個迴圈重新建比較好 還是用更新的比較好
+
+    # 儲存信號結束的標的
 
 
 print(state_changes)
