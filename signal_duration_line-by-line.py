@@ -186,6 +186,8 @@ while counter > 0:
     print(datetime.now().strftime("%H:%M:%S")) # 只輸出 hour, minute, second
     print(table)
     # 清掉table下個迴圈重新建比較好 還是用更新的比較好
+    # test
+
 
     # 儲存信號結束的標的
 
