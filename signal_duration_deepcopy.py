@@ -63,3 +63,25 @@ duration_greater_than = timedelta(seconds=2) # e.g. days=2, hours=1, minutes=30,
 monitor=['2330','8299','2368','3228','6290','7556','3443','1815','2476']
 
 
+for ticker in monitor:
+    api.quote.subscribe(api.Contracts.Stocks[ticker], quote_type='bidask')
+
+#  持續執行
+# while True:
+#     time.sleep(0) # 暫停10秒鐘
+#     # print("I'm still alive....")
+import time
+time.sleep(60)
+
+
+state_changes = defaultdict(list) # 存狀態改變, 結構={'ticker': [{'state_change_at': ...,'state': True/False, 'duration': ...}, {}, ...]}
+for ticker in monitor:  # Queue -> 看完要把ticker再加回去最後, 才會一直從msg_queue拿最新資料
+    snapshot_msg_queue = copy.deepcopy(msg_queue[ticker]) # 複製當下這個moment, 目標股的 n 筆資料
+    '''error here ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^'''
+    msg_queue[ticker].clear()  # 清掉
+    monitor.remove(ticker)
+    monitor.append(ticker)
+    # 確認是否已經有前一個state 沒有就initialize as False; 有state就傳入最新state
+    filter_state(ticker, snapshot_msg_queue, state_changes, lambda : False if state_changes[ticker][0]['state'] is None else state_changes[ticker][-1]['state']) 
+    filter_calc_duration(ticker, state_changes)
+    display_when_duration_meets_criteria(state_changes,duration_greater_than)
