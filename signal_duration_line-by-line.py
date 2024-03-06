@@ -32,10 +32,44 @@ msg_queue = {'key1': deque([BidAsk(xxx=ooo,
 from prettytable import PrettyTable
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
+import threading
+import time
 
 def convert_delta(dlt: timedelta) -> str:
     minutes, seconds = divmod(int(dlt.total_seconds()), 60)
     return f"{minutes}:{seconds:02}"
+
+def output_table(): # 每幾秒輸出一次當前信號
+    global monitor
+    global state_changes
+    global delay_table_display
+    while True:
+        time.sleep(delay_table_display)
+        # print("start")
+        table = PrettyTable(['Ticker','state','state_change_at','duration'])
+        for ticker in monitor:
+            if state_changes[ticker] != []:
+                if state_changes[ticker][-1]['state'] == 'high' or state_changes[ticker][-1]['state'] == 'low':
+                    # print(f"{ticker}: state {state_changes[ticker][-1]['state']}")
+                    list1 = [ticker, state_changes[ticker][-1]['state'], datetime.strftime(state_changes[ticker][-1]['state_change_at'], "%H:%M"), convert_delta(datetime.now()-state_changes[ticker][-1]['state_change_at'])]
+                    table.add_row(list1)
+        print(datetime.now().strftime("%H:%M:%S")) # 只輸出 hour, minute, second
+        print(table)
+        table.clear()
+    print("error!!!!!!!!!!!!!!!!")
+
+def save_states(): # 每幾分鐘存檔state_changes
+    global state_changes
+    global delay_save_states
+    while True:
+        time.sleep(delay_save_states)
+        print("state_changes saved at " + datetime.now().strftime("%H:%M:%S"))
+        t_filename = datetime.now().strftime("%Y-%m-%d") # .strftime("%Y-%m-%d_%Hh%Mm%Ss")
+        # 存到檔案下次沒開盤可讀
+        # import pickle # Provides functions for object serialization and deserialization.
+        with open(f"state_changes_above-time-threshold_{t_filename}.pkl", "wb") as file:
+            pickle.dump(state_changes, file)
+    print("error!!!!!!!!!!!!!!!!")
 
 # # new code
 # monitor = deque(['1101', '1102', '1103']) # 自定義
@@ -44,14 +78,29 @@ def convert_delta(dlt: timedelta) -> str:
 #     '1102': deque([10, 20, 30, 40, 50, 60]),
 #     '1103': deque([100, 100]),
 # }
+global monitor
+global delay_table_display
+global delay_save_states
 monitor = deque(['6290'])
 # monitor = deque(['2330','8299','2368','3228','6290','7556','1513','2313'])
 threshold_high = 94.71
 threshold_low = 94.70
 threshold_duration = timedelta(seconds=0) # e.g. days=2, hours=1, minutes=30, seconds=2
+delay_table_display = 10 # 每幾秒印一次信號表格
+delay_save_states = 600   # 每幾秒存一次信號表格
+
+global state_changes
 state_changes = defaultdict(list) # 存狀態改變, 結構={'ticker': [{'state_change_at': ...,'state': high/low/no_sig, 'duration': ...}, {}, ...]}
+
+t_table = threading.Thread(target=output_table)  #建立執行緒
+t_table.daemon = True  # daemon 參數設定為 True，則當主程序退出，執行緒也會跟著結束
+t_table.start()  #執行
+t_save_states = threading.Thread(target=save_states)  #建立執行緒
+t_save_states.daemon = True  # daemon 參數設定為 True，則當主程序退出，執行緒也會跟著結束
+t_save_states.start()  #執行
+
 counter = 200
-while counter > 0:
+while counter > 0: # True:
     """
     1. get and clean values from msg_queue
     """
@@ -115,6 +164,7 @@ while counter > 0:
             寫row到檔案,
             add row(ticker, low, timestamp,)
     """
+    
     info1 = current_stock_information['bid_price'][0]
     info2 = current_stock_information['ask_price'][0]
     if info1==0 or info2==0: # 如果輸入值為0就直接跳過 否則會造成state出錯
@@ -123,6 +173,7 @@ while counter > 0:
     criteria_low  = current_stock_information['ask_price'][0]
     #  2-0 初始化, 
     if state_changes[ticker] == []:
+        # print(f"initializing state_changes[{ticker}]")
         if criteria_high>=threshold_high:
             state_changes[ticker].append({'state': 'high', 'state_change_at': current_stock_information['datetime']})
             print(f"{ticker} state initiated to high at {criteria_high}")
@@ -133,6 +184,8 @@ while counter > 0:
             state_changes[ticker].append({'state': 'no_sig', 'state_change_at': current_stock_information['datetime']})
             print(f"{ticker} state initiated to no_sig at {criteria_low}")
         continue
+    # duration1 needs debugging
+    # print(f"debug: {ticker}'s state[-1]={state_changes[ticker][-1]['state']}")
     duration1 = current_stock_information['datetime']-state_changes[ticker][-1]['state_change_at']
     # 2-3 如果信號high/low->low/high, 且大於設定時長, 就改值且加一行; 小於時長就只把state改成low/high
     if state_changes[ticker][-1]['state'] == 'high' and criteria_low<=threshold_low and duration1>=threshold_duration:
@@ -164,11 +217,9 @@ while counter > 0:
         print(f"{ticker} state changed low to no_sig at {criteria_low} and low signal duration>threshold")
     elif state_changes[ticker][-1]['state'] == 'high' and criteria_high<threshold_high and duration1<threshold_duration:
         state_changes[ticker][-1]['state']= 'no_sig'
-        state_changes[ticker][-1]['state_change_at'] = current_stock_information['datetime']
         print(f"{ticker} state changed high to no_sig at {criteria_high}, high signal continued for {duration1}")
     elif state_changes[ticker][-1]['state'] == 'low' and criteria_low>threshold_low  and duration1<threshold_duration:
         state_changes[ticker][-1]['state']= 'no_sig'
-        state_changes[ticker][-1]['state_change_at'] = current_stock_information['datetime']
         print(f"{ticker} state changed low to no_sig at {criteria_low}, low signal continued for {duration1}")
     # 2-1 如果信號no_sig->high/low, 就改值
     elif state_changes[ticker][-1]['state'] == 'no_sig' and criteria_high>=threshold_high:
@@ -186,15 +237,16 @@ while counter > 0:
     3. display 
     """
     # 輸出現在有信號的標的
-    table = PrettyTable(['Ticker','state','state_change_at','duration'])
-    for ticker in monitor:
-        if state_changes[ticker][-1]['state'] == 'high' or state_changes[ticker][-1]['state'] == 'low':
-            print(f"{ticker}: state {state_changes[ticker][-1]['state']}")
-            list1 = [ticker, state_changes[ticker][-1]['state'], datetime.strftime(state_changes[ticker][-1]['state_change_at'], "%H:%M"), convert_delta(duration1)]
-            table.add_row(list1)
-    print(datetime.now().strftime("%H:%M:%S")) # 只輸出 hour, minute, second
-    print(table)
-    table.clear()
+    # table = PrettyTable(['Ticker','state','state_change_at','duration'])
+    # for ticker in monitor:
+    #     if state_changes[ticker] != []:
+    #         if state_changes[ticker][-1]['state'] == 'high' or state_changes[ticker][-1]['state'] == 'low':
+    #             # print(f"{ticker}: state {state_changes[ticker][-1]['state']}")
+    #             list1 = [ticker, state_changes[ticker][-1]['state'], datetime.strftime(state_changes[ticker][-1]['state_change_at'], "%H:%M"), convert_delta(duration1)]
+    #     table.add_row(list1)
+    #     print(datetime.now().strftime("%H:%M:%S")) # 只輸出 hour, minute, second
+    #     print(table)
+    #     table.clear()
     # 清掉table下個迴圈重新建比較好 還是用更新的比較好
     """
     4. save signal data 
