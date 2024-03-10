@@ -255,5 +255,25 @@ while counter > 0: # True:
 
     counter -= 1
 
+######################## 我是分隔線 #################################
+def stock_listener(queue):
+    while len(queue) > 0:
+        info = queue.popleft()
+        ...
 
-print(state_changes)
+
+def main():
+    monitor = ["1101", "3310", "1102", "1103", "1104", "1105"]
+    threads = []
+    for code in monitor:
+        queue = msg_queue[code]
+        thread = threading.Thread(target=stock_listener, arg=(queue,))
+        threads.append(thread)
+
+    for th in threads:
+        th.daemon = True
+        th.start()
+
+    print(state_changes)
+
+main()
