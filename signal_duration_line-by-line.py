@@ -96,6 +96,7 @@ def stock_listener(ticker, threshold_high, threshold_low, threshold_duration):
         1. get and clean values from msg_queue
         """
         if msg_queue[ticker] is None: # or ==deque([])
+            time.sleep(5)
             continue
         current_stock_queue: deque = msg_queue[ticker]  # [1, 2, 3, 4, 5]
         # 清掉已經抓的資料. (已經抓過來的不會被清掉 還在記憶體內, 只是把msg_queue重新指向空)  
@@ -103,6 +104,9 @@ def stock_listener(ticker, threshold_high, threshold_low, threshold_duration):
         msg_queue[ticker] = deque([])
         lock.release()
 
+        """ 把以下改成包進for-loop處理, 或是要把pop current_stock_queue改成直接pop msg_queue"""
+        for current_stock_information in current_stock_queue:
+            ...
         # Error handling, 1. 可容忍錯誤, 2. 不可容忍錯誤
         try:
             current_stock_information = current_stock_queue.popleft() # 1

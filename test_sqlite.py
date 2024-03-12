@@ -2,6 +2,7 @@ import sqlite3
 from sqlite3 import Error
 import json
 from collections import defaultdict, deque
+import pandas as pd
 
 def main():
     database = r"D:\sqlite.db"
@@ -29,15 +30,22 @@ def main():
     sql = """INSERT INTO data_table (key, value) VALUES (?, ?)"""
 
     # Iterate through defaultdict items
-    for key, value in data.items():
-        # Convert deque to JSON string for storage
-        json_value = serialize_deque(value)
-        cursor = conn.cursor()
-        cursor.execute(sql, (key, json_value))
-        conn.commit()
+    # for key, value in data.items():
+    #     # Convert deque to JSON string for storage
+    #     json_value = serialize_deque(value)
+    #     cursor = conn.cursor()
+    #     cursor.execute(sql, (key, json_value))
+    #     conn.commit()
+    
+    
     # 怎麼寫整個df進DB, 然後怎麼快速把df刪掉 &重建 能趕快再次收值
-    signal2db.to_sql(name='signal_realtime', con=conn, if_exists='append', index=False)
-
+    data2 = pd.DataFrame({
+    "ticker": ['1111'],
+    "datetime": [2],
+    "criteria_high": [3],
+    "criteria_low": [4]
+    })
+    data2.to_sql(name='test_db_write', con=conn, if_exists='append', index=False)
     print("Data exported to the SQLite database successfully!")
 
     """ output table"""
@@ -85,7 +93,7 @@ def select_all_from_data_table(conn):
     :return:
     """
     cur = conn.cursor()
-    cur.execute("SELECT * FROM data_table")
+    cur.execute("SELECT * FROM test_db_write")
 
     rows = cur.fetchall()
 
