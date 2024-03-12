@@ -29,7 +29,7 @@ def main():
     delay_duration_display = 15 # 每幾秒印一次信號表格
     delay_API_connection_start = 3 # wait for API connection to establish
     
-    global msg_queue, state_changes, accumulated_duration, lock
+    global msg_queue, state_changes, accumulated_duration, lock, signal2db
     msg_queue = defaultdict(deque)
     state_changes = defaultdict(list) # 存狀態改變, 結構={'ticker': [{'state_change_at': ...,'state': high/low/no_sig, 'duration': ...}, {}, ...]}
     accumulated_duration = pd.DataFrame({
@@ -39,6 +39,13 @@ def main():
     })
     accumulated_duration.set_index('Ticker', inplace=True)
     
+    signal2db = pd.DataFrame({
+    "ticker": [],
+    "datetime": [],
+    "criteria_high": [],
+    "criteria_low": []
+    })
+
     get_data(monitor)
     time.sleep(delay_API_connection_start)
     
@@ -88,13 +95,19 @@ def stock_listener(ticker, threshold_high, threshold_low, threshold_duration):
         """
         1. get and clean values from msg_queue
         """
-        # Error handling, 1. 可容忍錯誤, 2. 不可容忍錯誤
+        if msg_queue[ticker] is None: # or ==deque([])
+            continue
         current_stock_queue: deque = msg_queue[ticker]  # [1, 2, 3, 4, 5]
+        # 清掉已經抓的資料. (已經抓過來的不會被清掉 還在記憶體內, 只是把msg_queue重新指向空)  
+        lock.acquire()
+        msg_queue[ticker] = deque([])
+        lock.release()
 
+        # Error handling, 1. 可容忍錯誤, 2. 不可容忍錯誤
         try:
             current_stock_information = current_stock_queue.popleft() # 1
         except Exception:
-            # print("no signal at", datetime.now())
+            # print(f"{ticker} has no data at", datetime.now())
             continue
     
         """
@@ -109,6 +122,12 @@ def stock_listener(ticker, threshold_high, threshold_low, threshold_duration):
             continue
         criteria_high = current_stock_information['bid_price'][0]
         criteria_low  = current_stock_information['ask_price'][0]
+        # prepare for saving to DB
+        lock.acquire()
+        signal2db.loc[len(signal2db.index)] = [ticker, current_stock_information['datetime'], criteria_high, criteria_low]
+        # signal2db = signal2db.append([ticker, current_stock_information['datetime'], criteria_high, criteria_low])
+        # signal2db = signal2db.append({"ticker": ticker, "datetime": current_stock_information['datetime'], "criteria_high": criteria_high, "criteria_low": criteria_low})
+        lock.release()
         """
         setting ends
         """
@@ -218,15 +237,41 @@ def output_newest_state(monitor, delay_table_display): # 每幾秒輸出一次�
         print("PrettyTable")
         print(table.get_string(sortby="Ticker"))
         table.clear()
-        current_states.sort_values(by=['Ticker'])
-        print("tabulate")
-        print(tabulate(current_states, headers='keys', tablefmt='psql'))
-        del current_states
+        
+        # use tabulate to print
+        """Exception in thread Thread-58 (output_newest_state)"""
+        # print("use tabulate to print")
+        # current_states = pd.DataFrame({'Ticker':[], 'High_duration':[], 'Low_duration':[]})
+        # # lock.acquire()
+        # for ticker in monitor:
+        #     # if state_changes[ticker] != []:
+        #     if state_changes[ticker][-1]['state'] == 'high' or state_changes[ticker][-1]['state'] == 'low':
+        #         list1 = [ticker, state_changes[ticker][-1]['state'], datetime.strftime(state_changes[ticker][-1]['state_change_at'], "%H:%M"), convert_delta(datetime.now()-state_changes[ticker][-1]['state_change_at'])]
+        #         current_states.loc[len(current_states.index)] = list1
+        # # lock.release()
+        # current_states=current_states.sort_values(by=['Ticker'])
+        # print(datetime.now().strftime("%H:%M:%S")) # 只輸出 hour, minute, second
+        # print(tabulate(current_states, headers='keys', tablefmt='psql'))
+        # del current_states
     print("error!!!!!!!!!!!!!!!!")
 
 def convert_delta(dlt: timedelta) -> str:
     minutes, seconds = divmod(int(dlt.total_seconds()), 60)
     return f"{minutes}:{seconds:02}"
+
+def create_connection(db_file):
+    """ create a database connection to the SQLite database
+        specified by db_file
+    :param db_file: database file
+    :return: Connection object or None
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(db_file)
+        return conn
+    except Error as e:
+        print(e)
+    return conn
 
 main()
 

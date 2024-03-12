@@ -17,7 +17,7 @@ def main():
     #                                 ); """
     # create_table(conn, sql_create_data_table)
     # print("Table created successfully!")
-    
+
     """edit table"""
     # Sample data (replace with your actual defaultdict)
     data = defaultdict(list)
@@ -35,6 +35,7 @@ def main():
         cursor = conn.cursor()
         cursor.execute(sql, (key, json_value))
         conn.commit()
+    # 怎麼寫整個df進DB, 然後怎麼快速把df刪掉 &重建 能趕快再次收值
     print("Data exported to the SQLite database successfully!")
 
     """ output table"""
