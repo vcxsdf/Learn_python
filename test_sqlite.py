@@ -36,6 +36,8 @@ def main():
         cursor.execute(sql, (key, json_value))
         conn.commit()
     # 怎麼寫整個df進DB, 然後怎麼快速把df刪掉 &重建 能趕快再次收值
+    signal2db.to_sql(name='signal_realtime', con=conn, if_exists='append', index=False)
+
     print("Data exported to the SQLite database successfully!")
 
     """ output table"""

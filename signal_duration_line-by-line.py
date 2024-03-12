@@ -259,6 +259,18 @@ def convert_delta(dlt: timedelta) -> str:
     minutes, seconds = divmod(int(dlt.total_seconds()), 60)
     return f"{minutes}:{seconds:02}"
 
+def save_signal(db_file, delay_DB_access):
+    global signal2db
+    conn = create_connection(db_file)
+    if conn is None:
+        print("Error! cannot create the database connection.")
+    while True:
+        time.sleep(delay_DB_access)
+        # (先存realtime試試看)  1. 取1min平均 2. 存DB 3. 刪掉
+        lock.acquire()
+        signal2db.to_sql(name='signal_realtime', con=conn, if_exists='append', index=False)
+        lock.release()
+
 def create_connection(db_file):
     """ create a database connection to the SQLite database
         specified by db_file
