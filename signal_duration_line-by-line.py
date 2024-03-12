@@ -52,7 +52,7 @@ def main():
     lock = threading.Lock()         # 建立 Lock
     threads = []
     for ticker in monitor:
-        thread = threading.Thread(target=stock_listener, args=(ticker, threshold_high, threshold_low, threshold_duration,))
+        thread = threading.Thread(target=stock_listener, args=(msg_queue[ticker], ticker, threshold_high, threshold_low, threshold_duration,))
         threads.append(thread)
 
     for run_threads in threads:
@@ -88,37 +88,48 @@ def get_data(monitor):
         api.quote.subscribe(api.Contracts.Stocks[ticker], quote_type='bidask')
     """如何定期清理msg_queue"""
 
-def stock_listener(ticker, threshold_high, threshold_low, threshold_duration):
-    global state_changes, accumulated_duration
+def stock_listener(queue, ticker, threshold_high, threshold_low, threshold_duration):
+    global accumulated_duration
 
+    state_changes = defaultdict(list) # 1101
+    signal2db = pd.DataFrame({ # 1101
+        "ticker": [],
+        "datetime": [],
+        "criteria_high": [],
+        "criteria_low": []
+    })
     while True: #len(msg_queue[ticker]) > 0:
         """
         1. get and clean values from msg_queue
         """
-        if msg_queue[ticker] is None: # or ==deque([])
+        if len(queue) == 0:
             time.sleep(5)
             continue
-        current_stock_queue: deque = msg_queue[ticker]  # [1, 2, 3, 4, 5]
-        # 清掉已經抓的資料. (已經抓過來的不會被清掉 還在記憶體內, 只是把msg_queue重新指向空)  
-        lock.acquire()
-        msg_queue[ticker] = deque([])
-        lock.release()
+        current_stock_information = queue.popleft()
 
-        """ 把以下改成包進for-loop處理, 或是要把pop current_stock_queue改成直接pop msg_queue"""
-        for current_stock_information in current_stock_queue:
-            ...
-        # Error handling, 1. 可容忍錯誤, 2. 不可容忍錯誤
-        try:
-            current_stock_information = current_stock_queue.popleft() # 1
-        except Exception:
-            # print(f"{ticker} has no data at", datetime.now())
-            continue
+        # 清掉已經抓的資料. (已經抓過來的不會被清掉 還在記憶體內, 只是把msg_queue重新指向空)  
+        # """ 把以下改成包進for-loop處理, 或是要把pop current_stock_queue改成直接pop msg_queue"""
+        # for current_stock_information in current_stock_queue:
+        #     ...
+        # # Error handling, 1. 可容忍錯誤, 2. 不可容忍錯誤
+        # try:
+        #     current_stock_information = current_stock_queue.popleft() # 1
+        # except Exception:
+        #     # print(f"{ticker} has no data at", datetime.now())
+        #     continue
     
         """
         2. record state changes
         """
         """
         setting starts
+
+        一支股票 一個 Table
+        timestamp: 1113013131
+
+        假如實作 拿最新 state
+        1. 100 Thread 資料 更新到 database
+        2. 用 another thread run scheduler 10 sec -> request database
         """
         info1 = current_stock_information['bid_price'][0]
         info2 = current_stock_information['ask_price'][0]
@@ -127,11 +138,9 @@ def stock_listener(ticker, threshold_high, threshold_low, threshold_duration):
         criteria_high = current_stock_information['bid_price'][0]
         criteria_low  = current_stock_information['ask_price'][0]
         # prepare for saving to DB
-        lock.acquire()
         signal2db.loc[len(signal2db.index)] = [ticker, current_stock_information['datetime'], criteria_high, criteria_low]
         # signal2db = signal2db.append([ticker, current_stock_information['datetime'], criteria_high, criteria_low])
         # signal2db = signal2db.append({"ticker": ticker, "datetime": current_stock_information['datetime'], "criteria_high": criteria_high, "criteria_low": criteria_low})
-        lock.release()
         """
         setting ends
         """
@@ -150,6 +159,7 @@ def stock_listener(ticker, threshold_high, threshold_low, threshold_duration):
                 print(f"{ticker} state initiated to no_sig at {criteria_low}")
             lock.release()
             continue
+
         duration1 = current_stock_information['datetime']-state_changes[ticker][-1]['state_change_at']
         # 2-3 如果信號high/low->low/high, 且大於設定時長, 就改值且加一行; 小於時長就只把state改成low/high
         if state_changes[ticker][-1]['state'] == 'high' and criteria_low<=threshold_low and duration1>=threshold_duration:
@@ -292,10 +302,10 @@ def create_connection(db_file):
 main()
 
 ######################## 我是分隔線 #################################
-def stock_listener(queue):
-    while len(queue) > 0:
-        info = queue.popleft()
-        ...
+# def stock_listener(queue):
+#     while len(queue) > 0:
+#         info = queue.popleft()
+#         ...
 
 
 def main():
@@ -303,7 +313,7 @@ def main():
     threads = []
     for code in monitor:
         queue = msg_queue[code]
-        thread = threading.Thread(target=stock_listener, arg=(queue,))
+        thread = threading.Thread(target=stock_listener, args=(queue,))
         threads.append(thread)
 
     for th in threads:
@@ -313,3 +323,31 @@ def main():
     print(state_changes)
 
 main()
+
+
+
+"""
+from collections import deque
+# Python, 
+# pass by object reference#
+# pass by reference
+# mutable object, -> reference
+
+def your_listener(var: int):
+    var = 2
+
+def main():
+    int, float, bool, str, tuple
+    # 如果更改他, 完全create new object
+
+    list, dict, set, # class 相關 class deque, class ......
+    # 如果更改他, 不會create new object
+
+    pass mutable object to function -> reference
+
+    var = 1
+    your_listener(var)
+    print(var)
+
+main()
+"""
