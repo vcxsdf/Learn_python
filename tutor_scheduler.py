@@ -57,3 +57,26 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# 開關功能
+"""sample 2"""
+
+import schedule
+import time
+
+
+def job():
+    program_starts = time.time()
+
+    while True:
+        now = time.time()
+        timeframe = now - program_starts
+        print("It has been {0} seconds since the loop started".format(timeframe))
+        if timeframe > 3600:
+            break
+
+schedule.every().day.at("19:20:30").do(job)
+
+while True:
+    schedule.run_pending()
+    #time.sleep(60) # wait one minute

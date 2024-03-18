@@ -18,8 +18,20 @@ from tabulate import tabulate
 from prettytable import PrettyTable
 import sqlite3
 from sqlite3 import Error
+from apscheduler.schedulers.background import BackgroundScheduler
 
 def main():
+    scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
+    scheduler.add_job(listener_control, 'cron', day_of_week='0-4', hour=9, minute=0)
+    scheduler.start()
+    now = datetime.now()
+    while now < datetime(year = now.year, month = now.month, \
+        day = now.day, hour = 13, minute = 35) : # 最晚到1:35pm
+        time.sleep(30)
+        now = datetime.now()
+    print("end")
+
+def listener_control():
     monitor = deque(['2317','3163','3050'])
     threshold_high = 100   
     threshold_low = 30  #
@@ -62,7 +74,14 @@ def main():
     t_output_accumulated_duration.start()  #執行
     t_output_newest_state.start()  #執行
 
+    program_starts = time.time()
     while True:
+        """經過四小時半就停止程式"""
+        now = time.time()
+        timeframe = now - program_starts 
+        if timeframe > 16220: # seconds 
+            break
+        time.sleep(30)
         continue
 
 def get_data(monitor):
