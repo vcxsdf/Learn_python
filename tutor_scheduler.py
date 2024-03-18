@@ -23,30 +23,36 @@ def job2():
     #         ...
     print(f'hello I am job 2  {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
     
-def job3():
-    print(f'hello I am job 3  {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+def job3(var):
+    print(f'{var} hello I am job 3  {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
 
-def job4():
-    print(f'hello I am job 4  {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+def job4(var):
+    print(f'{var} hello I am job 4  {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
 
 def main():
 
     scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
 
+    # interval有weeks days hours minutes seconds
+    # cron有year month day hour minute second day_of_week
     scheduler.add_job(job1, 'interval', seconds=0)
 
     scheduler.add_job(job2, 'interval', seconds=2)
 
-    scheduler.add_job(job3, 'interval', seconds=3)
+    var = 'test'
+    scheduler.add_job(job3, trigger='interval', args= [var], seconds=3)
+    # scheduler.add_job(lambda: job3(var), trigger='interval', seconds=3)
 
-    scheduler.add_job(job4, 'cron', day_of_week='1-6', hour=18, minute=30)
+    # can add other file? 
+    # can pass variable to functions?
+    scheduler.add_job(job4, 'cron', day_of_week='0-4', hour=9, minute=0)
 
     scheduler.start()
 
     print('Schedule started ...')
 
     while True:
-        time.sleep(0) # 暫停10秒鐘
+        time.sleep(10) # 暫停10秒鐘
         print("I'm still alive....")
 
 if __name__ == "__main__":
