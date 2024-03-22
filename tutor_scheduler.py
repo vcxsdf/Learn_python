@@ -40,12 +40,13 @@ def main():
     scheduler.add_job(job2, 'interval', seconds=2)
 
     var = 'test'
-    scheduler.add_job(job3, trigger='interval', args= [var], seconds=3)
+    scheduler.add_job(job3, trigger='interval', args=[var], seconds=3)
     # scheduler.add_job(lambda: job3(var), trigger='interval', seconds=3)
 
     # can add other file? 
     # can pass variable to functions?
-    scheduler.add_job(job4, 'cron', day_of_week='0-4', hour=9, minute=0)
+    # remember to pass args=[var] to job4
+    scheduler.add_job(job4, 'cron', day_of_week='0-4', args=[var], hour=9, minute=0)
 
     scheduler.start()
 
@@ -61,22 +62,22 @@ if __name__ == "__main__":
 # 開關功能
 """sample 2"""
 
-import schedule
-import time
+# import schedule
+# import time
 
 
-def job():
-    program_starts = time.time()
+# def job():
+#     program_starts = time.time()
 
-    while True:
-        now = time.time()
-        timeframe = now - program_starts
-        print("It has been {0} seconds since the loop started".format(timeframe))
-        if timeframe > 3600:
-            break
+#     while True:
+#         now = time.time()
+#         timeframe = now - program_starts
+#         print("It has been {0} seconds since the loop started".format(timeframe))
+#         if timeframe > 3600:
+#             break
 
-schedule.every().day.at("19:20:30").do(job)
+# schedule.every().day.at("19:20:30").do(job)
 
-while True:
-    schedule.run_pending()
-    #time.sleep(60) # wait one minute
+# while True:
+#     schedule.run_pending()
+#     #time.sleep(60) # wait one minute
