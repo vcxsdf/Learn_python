@@ -19,6 +19,13 @@ from prettytable import PrettyTable
 import sqlite3
 from sqlite3 import Error
 from apscheduler.schedulers.background import BackgroundScheduler
+from enum import Enum
+
+class State(str, Enum):
+    HIGH = "high"
+    LOW = "low"
+    NO_SIG = "no_sig"
+
 
 def main():
     scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
@@ -147,46 +154,82 @@ def stock_listener(ticker, current_stock_queue, threshold_high, threshold_low, t
             continue
     
         # TODO: refactor this
-        state_change_duration = date_time-state_changes[ticker][-1]['state_change_at']
-        # 2-3 如果信號high/low->low/high, 且大於設定時長, 就改值且加一行; 小於時長就只把state改成low/high
-        if state_changes[ticker][-1]['state'] == 'high' and criteria_low<=threshold_low and state_change_duration>=threshold_duration:
-            change_state(ticker, state_change_duration, 'low', current_stock_info['datetime'])
-            accumulate_duration(ticker, "High_duration", state_change_duration)
-            print(f"{ticker} state changed from high to low at {criteria_low} and high signal duration>threshold")
-        elif state_changes[ticker][-1]['state'] == 'low' and criteria_high>=threshold_high and state_change_duration>=threshold_duration:
-            change_state(ticker, state_change_duration, 'high', current_stock_info['datetime'])
-            accumulate_duration(ticker, "Low_duration", state_change_duration)
-            print(f"{ticker} state changed from low to high at {criteria_high} and low signal duration>threshold")
-        elif state_changes[ticker][-1]['state'] == 'high' and criteria_low<=threshold_low and state_change_duration<threshold_duration:
-            reset_state(ticker, 'low', current_stock_info['datetime'])
-            print(f"{ticker} state changed from high to low at {criteria_low}, high signal continued for {state_change_duration}")
-        elif state_changes[ticker][-1]['state'] == 'low' and criteria_high>=threshold_high and state_change_duration<threshold_duration:
-            reset_state(ticker, 'high', current_stock_info['datetime'])
-            print(f"{ticker} state changed from low to high at {criteria_high}, low signal continued for {state_change_duration}")
+        state = state_changes[ticker][-1]['state'],
+        state_information=dict(
+            state_change_duration = date_time-state_changes[ticker][-1]['state_change_at'],
+            date_time = current_stock_info['datetime'],
+        )
+        conditions = dict(
+            is_state_duration_larger = state_information["state_change_duration"] > threshold_duration,
+            larger_criteria = criteria_high>=threshold_high,
+            lower_criteria = criteria_low<=threshold_low,
+        )
+        # 判斷條件
+        state_handlers = {
+            State.HIGH: high_state_handler,
+            State.LOW: low_state_handler,
+            State.NO_SIG: no_sig_handler,
+        }
+        state_handlers[state](**conditions, **state_handlers)
+
+
+def high_state_handler(criteria_low, criteria_high, larger_criteria, lower_criteria, is_state_duration_larger, ticker, state_change_duration, date_time ):
+    if lower_criteria and is_state_duration_larger:
+        change_state(ticker, state_change_duration, State.LOW,date_time)
+        
+        # accumulate_duration(ticker, "High_duration", state_change_duration)
+        print(f"{ticker} state changed from high to low at {criteria_low} and high signal duration>threshold")
+
+    elif lower_criteria and not is_state_duration_larger:
+        reset_state(ticker, State.LOW,date_time)
+        
+        print(f"{ticker} state changed from high to low at {criteria_low}, high signal continued for {state_change_duration}")
+
+    elif not larger_criteria and is_state_duration_larger:
+        change_state(ticker, state_change_duration, State.NO_SIG,date_time)
+        
+        # accumulate_duration(ticker, "High_duration", state_change_duration)
+        print(f"{ticker} state changed from high to no_sig at {criteria_high} and high signal duration>threshold")
+
+    elif not larger_criteria and not is_state_duration_larger:
+        reset_state(ticker, State.NO_SIG,date_time)
+        
+        print(f"{ticker} state changed from high to no_sig at {criteria_high}, high signal continued for {state_change_duration}")
+
+
+def low_state_handler(criteria_low, criteria_high, larger_criteria, lower_criteria, is_state_duration_larger, ticker, state_change_duration, date_time ):
+    if larger_criteria and is_state_duration_larger:
+        change_state(ticker, state_change_duration, State.HIGH,date_time)
+        # accumulate_duration(ticker, "Low_duration", state_change_duration)
+
+        print(f"{ticker} state changed from low to high at {criteria_high} and low signal duration>threshold")
+
+    elif larger_criteria and not is_state_duration_larger:
+        reset_state(ticker, State.HIGH,date_time)
+        
+        print(f"{ticker} state changed from low to high at {criteria_high}, low signal continued for {state_change_duration}")
         # 2-2 如果信號high/low->no_sig, 且大於設定時長, 就改值且加一行; 小於時長就只把state改回'no_sig
-        elif state_changes[ticker][-1]['state'] == 'high' and criteria_high<threshold_high and state_change_duration>=threshold_duration:
-            change_state(ticker, state_change_duration, 'no_sig', current_stock_info['datetime'])
-            accumulate_duration(ticker, "High_duration", state_change_duration)
-            print(f"{ticker} state changed from high to no_sig at {criteria_high} and high signal duration>threshold")
-        elif state_changes[ticker][-1]['state'] == 'low' and criteria_low>threshold_low and state_change_duration>=threshold_duration:
-            change_state(ticker, state_change_duration, 'no_sig', current_stock_info['datetime'])
-            accumulate_duration(ticker, "Low_duration", state_change_duration)
-            print(f"{ticker} state changed from low to no_sig at {criteria_low} and low signal duration>threshold")
-        elif state_changes[ticker][-1]['state'] == 'high' and criteria_high<threshold_high and state_change_duration<threshold_duration:
-            reset_state(ticker, 'no_sig', current_stock_info['datetime'])
-            print(f"{ticker} state changed from high to no_sig at {criteria_high}, high signal continued for {state_change_duration}")
-        
-        elif state_changes[ticker][-1]['state'] == 'low' and criteria_low>threshold_low  and state_change_duration<threshold_duration:
-            reset_state(ticker, 'no_sig', current_stock_info['datetime'])
-            print(f"{ticker} state changed from low to no_sig at {criteria_low}, low signal continued for {state_change_duration}")
-        
-        # 2-1 如果信號no_sig->high/low, 就改值
-        elif state_changes[ticker][-1]['state'] == 'no_sig' and criteria_high>=threshold_high:
-            reset_state(ticker, 'high', current_stock_info['datetime'])
-            print(f"{ticker} state changed from no_sig to high at {criteria_high}")
-        elif state_changes[ticker][-1]['state'] == 'no_sig' and criteria_low<=threshold_low:
-            reset_state(ticker, 'low', current_stock_info['datetime'])
-            print(f"{ticker} state changed from no_sig to low at {criteria_low}")
+
+    elif not lower_criteria and is_state_duration_larger:
+        change_state(ticker, state_change_duration, State.NO_SIG,date_time)
+
+        # accumulate_duration(ticker, "Low_duration", state_change_duration)
+        print(f"{ticker} state changed from low to no_sig at {criteria_low} and low signal duration>threshold")
+
+    elif not lower_criteria  and not is_state_duration_larger:
+        reset_state(ticker, State.NO_SIG, date_time)
+        print(f"{ticker} state changed from low to no_sig at {criteria_low}, low signal continued for {state_change_duration}")
+    
+
+def no_sig_handler(criteria_low, criteria_high, larger_criteria, lower_criteria, is_state_duration_larger, ticker, state_change_duration, date_time):
+    state = None
+    if larger_criteria:
+        state = State.HIGH
+    elif lower_criteria:
+        state = State.LOW
+
+    reset_state(ticker, state, date_time)
+    print(f"{ticker} state changed from no_sig to low at {criteria_low}")
 
 def change_state(ticker, duration1, new_state, new_time):
     global state_changes
