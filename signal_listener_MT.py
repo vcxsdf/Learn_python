@@ -26,7 +26,7 @@ def main():
     scheduler.start()
     now = datetime.now()
     while now < datetime(year = now.year, month = now.month, \
-        day = now.day, hour = 13, minute = 35) : # 最晚到1:35pm
+        day = now.day, hour = 13, minute = 31) : # 最晚到1:35pm
         time.sleep(30)
         now = datetime.now()
     print("end")
@@ -113,17 +113,17 @@ def stock_listener(ticker, current_stock_queue, threshold_high, threshold_low, t
         """
         setting starts
         """
+        date_time = current_stock_info['datetime']
+        # (price threshold)
         criteria_high = current_stock_info['bid_price'][0]
         criteria_low  = current_stock_info['ask_price'][0]
-        date_time = current_stock_info['datetime']
-    
         if criteria_high==0 or criteria_low==0: # 如果輸入值為0就直接跳過 否則會造成state出錯
             continue
-
+        
         """dev DB access"""
         # 改datatype成 float 才能存DB
-        price_avg = float((criteria_low+criteria_high)/2)
-        insert_to_DB(table_name, [ticker, date_time, price_avg, criteria_high])
+        # price_avg = float((criteria_low+criteria_high)/2)
+        # insert_to_DB(table_name, [ticker, date_time, price_avg, criteria_high])
         """
         setting ends
         """
