@@ -1,25 +1,17 @@
-from collections import deque
-# Python, 
-# pass by object reference#
-# pass by reference
-# mutable object, -> reference
+from enum import Enum
 
-def your_listener(var: int):
-    var = 2
+class State(str, Enum):
+    ...
 
-def main():
-    int, float, bool, str, tuple
-    # 如果更改他, 完全create new object
 
-    list, dict, set, # class 相關 class deque, class ......
-    # 如果更改他, 不會create new object
 
-    """
-    pass mutable object to function -> reference
-    """
+d = {
+    "a": 1,
+    "b": 2,
+}
 
-    var = 1
-    your_listener(var)
-    print(var)
+def function(a, b):
+    print(a, b)
 
-main()
+
+function(a=1, b=2)
