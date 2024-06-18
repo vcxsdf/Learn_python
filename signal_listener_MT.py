@@ -103,6 +103,49 @@ def register_stock_code(monitor):
     for ticker in monitor:
         api.quote.subscribe(api.Contracts.Stocks[ticker], quote_type='bidask')
 
+
+def threshold_handler_func_p(current_stock_info, *args):
+    # write some condtion including threshold high or low .....etc
+    pass
+
+def medium_data_handler_func(current_stock_info, *args):
+    # another condtion .....etc
+    pass
+
+
+def new_stock_lisener(ticker, current_stock_queue: deque, table_name: str, register):
+    global state_changes, accumulated_duration
+
+    while True: #len(msg_queue[ticker]) > 0:
+        """
+        1. get and clean values from msg_queue
+        """
+        if len(current_stock_queue) ==0:
+            time.sleep(5)
+            continue
+
+        current_stock_info = current_stock_queue.popleft()
+
+        # step 1, clean stock info with critieria
+        preprocess_handlers = register["preprocess_handlers"]
+        for handler in preprocess_handlers:
+            handler_func(current_stock_info)
+
+        # step2, conditional handlers ......
+        conditional_handlers = register["conditional_handlers"]
+        for handler in conditional_handlers:
+            handler_func(current_stock_info)
+
+        # step3 ... ????????
+
+register = {
+    "preprocess_handlers": [threshold_handler_func_p, medium_data_handler_func_p, ....],
+    "conditional_handlers": [threshold_handler_func_c, medium_data_handler_func_c, ...],
+}
+
+new_thread = threading.Thread(target=new_stock_lisener, args=(ticker, msg_queue[ticker], table_name, register))
+
+
 def stock_listener(ticker, current_stock_queue, threshold_high, threshold_low, threshold_duration, table_name):
     global state_changes, accumulated_duration
 
